@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export class Rand {
+  n: number;
+  constructor(n?: number) { this.n = n || 42; for (let i = 0; i < 3; i++) this.f(); }
+  f(): number {
+    this.n = (2147483629 * this.n + 2147483587) % 2147483647;
+    return (this.n & 0xffff) / (1 << 16);
+  }
+  i(n: number): number {
+    return Math.floor(this.f() * n);
+  }
+}
+
 function playBuffer(ctx: AudioContext, buffer: AudioBuffer) {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
@@ -33,8 +45,9 @@ async function mkDrum(ctx: AudioContext, { freq, durationSec, env, gain }: DrumP
   const now = d.currentTime;
   const buffer = d.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
+  const rand = new Rand();
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = Math.random() * 2 - 1;
+    data[i] = rand.f() * 2 - 1;
   }
 
   const source = d.createBufferSource();
