@@ -1,4 +1,4 @@
-import './style.css'
+import { useCallback, useEffect, useRef } from "react";
 
 function playBuffer(ctx: AudioContext, buffer: AudioBuffer) {
   const source = ctx.createBufferSource();
@@ -63,18 +63,13 @@ async function mkDrum(ctx: AudioContext, { freq, durationSec, env, gain }: DrumP
   return d.startRendering();
 }
 
-
-
-document.getElementById('play')!.onclick = async () => {
-  const ctx = new AudioContext();
-
+async function playSound(ctx: AudioContext) {
   const ff = 6;
   const bass = await mkDrum(ctx, { freq: 100, gain: 8, durationSec: 1 / ff, env: true });
   const snare = await mkDrum(ctx, { freq: 5000, gain: 0.5, durationSec: 1 / (2 * ff), env: true });
 
 
   const convolver = ctx.createConvolver();
-
 
   try {
     const response = await fetch(
@@ -115,3 +110,34 @@ document.getElementById('play')!.onclick = async () => {
   }
 
 };
+
+export function App() {
+  const audioContextRef = useRef(null);
+
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    }
+    return audioContextRef.current;
+  }, []);
+
+  const handleClick = useCallback(() => {
+    const ctx = getAudioContext();
+    playSound(ctx);
+  }, [getAudioContext]);
+
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+
+  return (
+    <>
+      <button id="play" onClick={handleClick}>Play noise</button>
+    </>
+  );
+}
