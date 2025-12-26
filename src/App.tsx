@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState, JSX } from "react";
 import { type CanvasInfo, useCanvas } from './use-canvas';
 
+function fmod(a: number, b: number): number {
+  return a - Math.floor(a / b) * b;
+}
+
 class Rand {
   n: number;
   constructor(n?: number) { this.n = n || 42; for (let i = 0; i < 3; i++) this.f(); }
@@ -100,9 +104,9 @@ function patLength(pat: Note[]): number {
   return Math.max(...pat.map(n => n.endSec));
 }
 
-async function playSound(ctx: AudioContext, pat: string, divPerSec: number) {
-  const bass = await mkDrum(ctx, { freq: 100, gain: 8, durationSec: 1 / (3 * divPerSec), env: true });
-  const snare = await mkDrum(ctx, { freq: 5000, gain: 0.5, durationSec: 1 / (3 * divPerSec), env: true });
+async function playSound(ctx: AudioContext, pat: Note[], divPerSec: number) {
+  const bass = await mkDrum(ctx, { freq: 70, gain: 16, durationSec: 1 / (divPerSec), env: false });
+  const snare = await mkDrum(ctx, { freq: 6000, gain: 0.5, durationSec: 1 / (2 * divPerSec), env: true });
 
   const convolver = ctx.createConvolver();
 
@@ -132,11 +136,11 @@ async function playSound(ctx: AudioContext, pat: string, divPerSec: number) {
   }
 
   const insts: { [key: string]: AudioBuffer } = { bass, snare };
-  const notes = parsePat(pat, divPerSec);
-  const wholeDur = patLength(notes);
+
+  const wholeDur = patLength(pat);
 
   for (let i = 0; i < 2; i++) {
-    notes.forEach(n => {
+    pat.forEach(n => {
       if (n.instName != undefined) {
         playBufferAt(ctx, sequencerOut, insts[n.instName], n.startSec + i * wholeDur);
       }
@@ -147,33 +151,42 @@ async function playSound(ctx: AudioContext, pat: string, divPerSec: number) {
 const WIDTH = 500;
 const HEIGHT = 100;
 
-function render(ci: CanvasInfo, { pat }: { pat: Note[] }) {
+function render(ci: CanvasInfo, { pat, playhead }: { pat: Note[], playhead: number | undefined }) {
   const { d } = ci;
   d.clearRect(0, 0, WIDTH, HEIGHT);
   const ww = WIDTH - 1;
   const hh = HEIGHT - 1;
   const length = patLength(pat);
+
   pat.forEach(n => {
     if (n.instName != undefined) {
       if (n.instName == 'bass') d.fillStyle = '#def';
       if (n.instName == 'snare') d.fillStyle = '#fed';
+      if (playhead > n.startSec && playhead < n.endSec) d.fillStyle = "yellow";
       d.lineWidth = 1;
       d.fillRect(0.5 + Math.floor(ww * n.startSec / length), 0.5, Math.floor(ww * (n.endSec - n.startSec) / length), hh);
       d.strokeRect(0.5 + Math.floor(ww * n.startSec / length), 0.5, Math.floor(ww * (n.endSec - n.startSec) / length), hh);
     }
   });
+  if (playhead != undefined) {
+    d.fillStyle = 'red';
+    const p = ww * playhead / length;
+    d.fillRect(p - 3, 0, 6, hh);
+  }
 }
 
-function PatDisplay(props: { pat: Note[] }): JSX.Element {
-  const { pat } = props;
-  const [rc, mr] = useCanvas<{ pat: Note[] }>({ pat }, render, [pat], (ci) => { ci.c.width = ci.size.x; ci.c.height = ci.size.y; });
+
+function PatDisplay(props: { pat: Note[], playhead: number | undefined }): JSX.Element {
+  const { pat, playhead } = props;
+  const [rc, mr] = useCanvas<{ pat: Note[], playhead: number | undefined }>({ pat, playhead }, render, [pat, playhead], (ci) => { ci.c.width = ci.size.x; ci.c.height = ci.size.y; });
   return <canvas ref={rc} style={{ width: 500, height: 100 }} />;
 }
 
 export function App() {
-  const ff = 8;
+  const ff = 6;
   const audioContextRef = useRef(null);
-  const [text, setText] = useState('b s b s ');
+  const [text, setText] = useState('bbbbsb  bbbbs  s');
+  const [playhead, setPlayhead] = useState<number | undefined>(0);
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -182,9 +195,21 @@ export function App() {
     return audioContextRef.current;
   }, []);
 
+  function follow(ctx: AudioContext, startSec: number, patLength: number, untilSec: number) {
+    const elapsed = ctx.currentTime - startSec;
+    setPlayhead(fmod(elapsed, patLength));
+    if (elapsed < untilSec)
+      setTimeout(() => follow(ctx, startSec, patLength, untilSec), 20);
+    else
+      setPlayhead(0);
+  }
+
   const handleClick = useCallback((text: string) => {
     const ctx = getAudioContext();
-    playSound(ctx, text, ff);
+    const notes = parsePat(text, ff);
+    playSound(ctx, notes, ff);
+    const length = patLength(notes);
+    follow(ctx, ctx.currentTime, length, 2 * length);
   }, [getAudioContext]);
 
   useEffect(() => {
@@ -198,7 +223,7 @@ export function App() {
   const pat = parsePat(text, ff);
   return (
     <div className="content">
-      <PatDisplay pat={pat} /><br />
+      <PatDisplay pat={pat} playhead={playhead} /><br />
       <input value={text} onChange={(e) => { setText(e.target.value) }} /><br />
       <button id="play" onClick={() => handleClick(text)}>Play noise</button>
     </div>
