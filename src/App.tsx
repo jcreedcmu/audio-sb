@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function playBuffer(ctx: AudioContext, buffer: AudioBuffer) {
   const source = ctx.createBufferSource();
@@ -63,7 +63,7 @@ async function mkDrum(ctx: AudioContext, { freq, durationSec, env, gain }: DrumP
   return d.startRendering();
 }
 
-async function playSound(ctx: AudioContext) {
+async function playSound(ctx: AudioContext, pat: string) {
   const ff = 6;
   const bass = await mkDrum(ctx, { freq: 100, gain: 8, durationSec: 1 / ff, env: true });
   const snare = await mkDrum(ctx, { freq: 5000, gain: 0.5, durationSec: 1 / (2 * ff), env: true });
@@ -96,7 +96,6 @@ async function playSound(ctx: AudioContext) {
     sequencerOut = master;
   }
 
-  const pat = "b s b s b ssbbss";
   function getInst(x: string) {
     if (x == 'b') return bass;
     if (x == 's') return snare;
@@ -113,6 +112,7 @@ async function playSound(ctx: AudioContext) {
 
 export function App() {
   const audioContextRef = useRef(null);
+  const [text, setText] = useState('b s b s ');
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -121,9 +121,9 @@ export function App() {
     return audioContextRef.current;
   }, []);
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((text: string) => {
     const ctx = getAudioContext();
-    playSound(ctx);
+    playSound(ctx, text);
   }, [getAudioContext]);
 
   useEffect(() => {
@@ -136,8 +136,9 @@ export function App() {
 
 
   return (
-    <>
-      <button id="play" onClick={handleClick}>Play noise</button>
-    </>
+    <div className="content">
+      <input value={text} onChange={(e) => { setText(e.target.value) }} /><br />
+      <button id="play" onClick={() => handleClick(text)}>Play noise</button>
+    </div>
   );
 }

@@ -4,11 +4,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 2em;
 }
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
 
+}
+
+.content {
+  text-align: center;
 }
 
 button {
